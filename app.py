@@ -459,3 +459,211 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
+# =============================================================================
+# GRÁFICA DE LA CAMPANA DE GAUSS — Región de rechazo y estadístico Z
+# =============================================================================
+st.markdown("### 🔔 Distribución Normal Estándar N(0,1) — Región de Rechazo")
+
+fig_z, ax_z = plt.subplots(figsize=(10, 4.5))
+fig_z.patch.set_facecolor('#f7faff')
+ax_z.set_facecolor('#f7faff')
+
+# Rango del eje x (cubrimos ±4 desviaciones estándar)
+x_rango = np.linspace(-4.5, 4.5, 600)
+y_normal = stats.norm.pdf(x_rango)   # f(x) de N(0,1)
+
+# Curva de la distribución normal estándar
+ax_z.plot(x_rango, y_normal, color=COLOR_PRINCIPAL, linewidth=2.5, zorder=3)
+ax_z.fill_between(x_rango, y_normal, alpha=0.07, color=COLOR_PRINCIPAL)  # área bajo la curva (tenue)
+
+# --- Sombreado de la(s) región(es) de rechazo ---
+COLOR_RECHAZO = "#e94560"
+
+if "Bilateral" in tipo_prueba:
+    # Ambas colas: x ≤ -z_crit  y  x ≥ +z_crit
+    mascara_izq = x_rango <= z_criticos[0]
+    mascara_der = x_rango >= z_criticos[1]
+    ax_z.fill_between(x_rango, y_normal, where=mascara_izq, color=COLOR_RECHAZO, alpha=0.45, label=f"Región de rechazo (α/2={alpha/2})")
+    ax_z.fill_between(x_rango, y_normal, where=mascara_der, color=COLOR_RECHAZO, alpha=0.45)
+    # Líneas verticales para los valores críticos
+    for zc in z_criticos:
+        ax_z.axvline(zc, color=COLOR_RECHAZO, linestyle='--', linewidth=1.5,
+                     label=f"Z crítico = {zc:.3f}" if zc > 0 else None)
+        ax_z.axvline(zc, color=COLOR_RECHAZO, linestyle='--', linewidth=1.5)
+
+elif "izquierda" in tipo_prueba:
+    mascara = x_rango <= z_criticos[0]
+    ax_z.fill_between(x_rango, y_normal, where=mascara, color=COLOR_RECHAZO, alpha=0.45,
+                      label=f"Región de rechazo (α={alpha})")
+    ax_z.axvline(z_criticos[0], color=COLOR_RECHAZO, linestyle='--', linewidth=1.5,
+                 label=f"Z crítico = {z_criticos[0]:.3f}")
+
+else:  # Cola derecha
+    mascara = x_rango >= z_criticos[0]
+    ax_z.fill_between(x_rango, y_normal, where=mascara, color=COLOR_RECHAZO, alpha=0.45,
+                      label=f"Región de rechazo (α={alpha})")
+    ax_z.axvline(z_criticos[0], color=COLOR_RECHAZO, linestyle='--', linewidth=1.5,
+                 label=f"Z crítico = {z_criticos[0]:.3f}")
+
+# --- Línea/punto del estadístico Z calculado ---
+COLOR_Z_CALC = "#f6ad55"
+ax_z.axvline(Z_calc, color=COLOR_Z_CALC, linewidth=2.5, linestyle='-', zorder=5,
+             label=f"Z calculado = {Z_calc:.3f}")
+# Punto sobre la curva para el estadístico Z
+y_z_calc = stats.norm.pdf(Z_calc)
+ax_z.scatter([Z_calc], [y_z_calc], color=COLOR_Z_CALC, s=100, zorder=6, edgecolor='white', linewidth=1.5)
+
+# Anotación del valor de Z calculado
+ax_z.annotate(
+    f"Z = {Z_calc:.3f}",
+    xy=(Z_calc, y_z_calc),
+    xytext=(Z_calc + 0.3, y_z_calc + 0.03),
+    fontsize=9, color=COLOR_Z_CALC, fontweight='bold',
+    arrowprops=dict(arrowstyle='->', color=COLOR_Z_CALC, lw=1.5)
+)
+
+ax_z.set_xlabel("Valores de Z", fontsize=11)
+ax_z.set_ylabel("Densidad de probabilidad f(Z)", fontsize=11)
+ax_z.set_title(f"Distribución Normal Estándar · Prueba Z · Tipo: {tipo_prueba.split('(')[0].strip()}", 
+               fontsize=12, fontweight='bold', color=COLOR_PRINCIPAL)
+ax_z.legend(fontsize=9, loc='upper right', framealpha=0.9)
+ax_z.spines[['top', 'right']].set_visible(False)
+ax_z.set_xlim(-4.5, 4.5)
+plt.tight_layout()
+st.pyplot(fig_z)
+plt.close(fig_z)
+
+
+
+# =============================================================================
+# MÓDULO 4: INTEGRACIÓN CON GOOGLE GEMINI
+# =============================================================================
+st.markdown("""
+<div class="section-card">
+    <div class="section-title">🤖 Módulo 4 · Asistente IA — Google Gemini</div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- Construcción del prompt (NUNCA se envían datos crudos, solo el resumen estadístico) ---
+tipo_prueba_corto = tipo_prueba.split("(")[0].strip()
+decision_texto    = "Se rechaza H₀" if rechaza else "No se rechaza H₀"
+
+prompt_ia = f"""
+Eres un profesor universitario de estadística. Un estudiante realizó una Prueba Z con los siguientes parámetros:
+
+• Media muestral (x̄): {x_barra:.4f}
+• Media hipotética bajo H₀ (μ₀): {mu_0}
+• Tamaño de muestra (n): {n}
+• Desviación estándar poblacional conocida (σ): {sigma:.4f}
+• Error estándar (σ/√n): {error_estandar:.4f}
+• Nivel de significancia (α): {alpha}
+• Tipo de prueba: {tipo_prueba_corto}
+• Estadístico Z calculado: {Z_calc:.4f}
+• Valor(es) crítico(s) Z: {', '.join([f'{z:.4f}' for z in z_criticos])}
+• p-value: {p_value:.5f}
+• Decisión: {decision_texto}
+
+Por favor:
+1. Explica paso a paso la lógica de la decisión tomada ({decision_texto}), incluyendo la comparación del p-value con α.
+2. Interpreta qué significa este resultado en términos prácticos (sin acceso a los datos, usa los parámetros dados).
+3. Evalúa si los supuestos de la Prueba Z (varianza conocida y n ≥ 30) son razonables dado el contexto.
+4. Menciona qué error estadístico (Tipo I o Tipo II) sería relevante considerar en este caso y por qué.
+5. Responde en español, con un tono didáctico y accesible para un estudiante universitario de estadística.
+"""
+
+col_boton, col_estado = st.columns([1, 3])
+
+with col_boton:
+    solicitar_ia = st.button("🧠 Solicitar análisis a la IA", use_container_width=True)
+
+if solicitar_ia:
+    # Intentamos obtener la API key desde el archivo .env
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        st.error(
+            "⚠️ **No se encontró la API key de Gemini.**  \n"
+            "Crea un archivo `.env` en la misma carpeta que `app.py` con el contenido:  \n"
+            "`GEMINI_API_KEY=tu_llave_aqui`"
+        )
+    else:
+        try:
+            # Importamos aquí para no fallar si la librería no está instalada
+            import google.generativeai as genai
+
+            genai.configure(api_key=api_key)
+            # CAMBIO A GEMINI-PRO PARA EVITAR EL ERROR 404 DE LA LIBRERÍA
+          # USAMOS EL MODELO MÁS NUEVO Y ACTIVO
+            modelo = genai.GenerativeModel("gemini-2.5-flash")
+
+            with st.spinner("🔍 Gemini está analizando los resultados..."):
+                respuesta = modelo.generate_content(prompt_ia)
+                texto_respuesta = respuesta.text
+
+            st.session_state["respuesta_ia"] = texto_respuesta
+
+        except ImportError:
+            st.error("⚠️ Instala la librería: `pip install google-generativeai`")
+        except Exception as e:
+            st.error(f"❌ Error al comunicarse con Gemini: {e}")
+
+# Mostrar la respuesta si existe en session_state
+if "respuesta_ia" in st.session_state:
+    st.markdown("#### 💬 Análisis de Gemini:")
+    st.info(st.session_state["respuesta_ia"])
+
+st.markdown("---")
+
+# Bloque de comparación directa
+st.subheader("⚖️ Comparativa: Humano vs. IA")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.info(f"**Tu análisis visual:**\n- Normalidad: {resp_normal}\n- Sesgo: {resp_sesgo}\n- Outliers: {resp_outliers}")
+
+with col2:
+    st.success(f"**Análisis de la IA:**\nConsulta el texto superior para ver la validación de tus hipótesis y la interpretación de la Prueba Z.")
+    
+# =============================================================================
+# SECCIÓN DE REFLEXIÓN CRÍTICA DEL ESTUDIANTE (núcleo pedagógico)
+# =============================================================================
+st.markdown("#### ✍️ Tu Reflexión — Comparación con la IA")
+st.markdown(
+    "Este es el momento más importante del ejercicio. Compara el análisis de la IA con tu propio "
+    "razonamiento estadístico. ¿Coincidís? ¿Detectas errores, imprecisiones o 'alucinaciones'?"
+)
+
+reflexion_estudiante = st.text_area(
+    "Escribe tus conclusiones aquí:",
+    placeholder=(
+        "Ejemplo:\n"
+        "- La IA concluyó correctamente que [...]  \n"
+        "- Sin embargo, creo que la IA se equivocó en [...] porque [...]  \n"
+        "- El p-value de {:.5f} indica que [...]  \n"
+        "- El supuesto de σ conocida es razonable/no razonable porque [...]  \n"
+        "- Un Error Tipo I en este contexto significaría [...]".format(p_value)
+    ),
+    height=220,
+    key="reflexion"
+)
+
+if reflexion_estudiante:
+    st.success("✅ Reflexión guardada. ¡Excelente trabajo crítico!")
+    # Resumen de los parámetros elegidos por el estudiante para el módulo 2
+    st.markdown("**Resumen de tu análisis visual (Módulo 2):**")
+    col_r1, col_r2, col_r3 = st.columns(3)
+    col_r1.info(f"**Normalidad:** {resp_normal}")
+    col_r2.info(f"**Sesgo:** {resp_sesgo}")
+    col_r3.info(f"**Outliers:** {resp_outliers}")
+
+# =============================================================================
+# PIE DE PÁGINA
+# =============================================================================
+st.markdown("---")
+st.markdown(
+    "<div style='text-align:center; color:#888; font-size:0.82rem; padding: 0.5rem;'>"
+    "Laboratorio de Prueba Z · Estadística Inferencial · Herramienta Educativa · "
+    "Los datos nunca se envían a servicios externos — solo se transmite el resumen estadístico."
+    "</div>",
+    unsafe_allow_html=True
+)
